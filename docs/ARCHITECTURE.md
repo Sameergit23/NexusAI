@@ -2,7 +2,9 @@
 
 ## Overview
 
-NexusAI is a multi-agent autonomous delivery pipeline. A single user goal flows through five specialised Claude agents in sequence. Each agent calls one or more tools, persists its output to Supabase, and passes a structured result to the next agent. No human intervention is required after the initial goal is submitted.
+NexusAI is an **Autonomous Agent Operating System** — a universal multi-agent platform where a single user goal is achieved end-to-end by five specialised Claude agents with no human in the loop. The architecture is domain-agnostic: the agents stay the same across verticals (Logistics, Customer Support, Sales, HR, Healthcare, Finance, and more); only the tools they call change.
+
+This document describes the **Round 1 logistics vertical**, our first and most visual demo. A single user goal flows through the five agents. Each agent calls one or more tools, persists its output to Supabase, and passes a structured result to the next agent. No human intervention is required after the initial goal is submitted.
 
 ---
 
