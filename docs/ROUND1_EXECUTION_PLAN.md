@@ -6,6 +6,7 @@ shared setup, deployment, integration, and submission that usually get missed. E
 owner. If it is on this page, somebody owns it.
 
 > Single source of truth for numbers and data shapes: `docs/ARCHITECTURE.md` → *Canonical Constants & Output Shapes (LOCKED)*.
+> Per-person step-by-step tasks: see `docs/tasks/` (one file each for Sameer, Chetan, Aditya Patil, Aditya Adarsh).
 
 ---
 
