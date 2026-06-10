@@ -1,5 +1,5 @@
 # NexusAI — Round 1 Task Division
-**Hackathon: FAR AWAY 2026 | Date: Jun 8**
+**Hackathon: FAR AWAY 2026 | Updated: Jun 10**
 
 > Each person works on their own files. Nobody touches someone else's files.
 > When done, send Sameer your folder/files via WhatsApp or GitHub PR.
@@ -10,14 +10,23 @@
 ## Overview — What needs to be built
 
 Phase 1 (done by Sameer) gave us the skeleton.
-Phase 2 (today, Round 1) is the working system:
+The working system is built in these layers:
 
-| Layer | What gets built today |
+| Layer | What gets built |
 |---|---|
 | Backend agents | 5 agent files that call Claude API |
 | Tool handlers | Python functions that execute the 4 tools |
 | FastAPI server | 1 endpoint that kicks off the whole pipeline |
 | Frontend | Dashboard UI that shows the run live |
+
+### Who owns what (current assignment)
+
+| Person | Role | Files |
+|---|---|---|
+| **Sameer Akhtar** | Lead Developer (+ more if required) | `backend/main.py`, `backend/agents/orchestrator.py` |
+| **Chetan Prajapat** | Frontend (+ more if required) | full `frontend/` Next.js app |
+| **Aditya Patil** | Backend — Planning & Routing (+ more) | `backend/agents/planner.py`, `backend/agents/route_optimizer.py`, `handlers.py` (plan_tasks + optimise_routes) |
+| **Aditya Adarsh** | Backend — Comms & Analytics + Presentation (+ more) | `backend/agents/notification.py`, `backend/agents/analytics.py`, `handlers.py` (send_notifications + generate_report), PPT + demo video + Unstop submission |
 
 ---
 
@@ -66,7 +75,7 @@ Add a `POST /run/{run_id}/retry` endpoint that re-runs a failed run from scratch
 
 ---
 
-## ADITYA PATIL — Frontend Developer
+## CHETAN PRAJAPAT — Frontend Developer
 **Files to create:**
 ```
 frontend/  (full Next.js app)
@@ -103,13 +112,17 @@ Add a `/history` page that lists all past runs from Supabase with their status a
 
 ---
 
-## ADITYA ADARSH — Backend Agent Dev
+## ADITYA PATIL — Backend Agent Dev (Planning & Routing)
 **Files to create:**
 ```
 backend/agents/planner.py
 backend/agents/route_optimizer.py
 backend/tools/handlers.py  (plan_tasks + optimise_routes functions)
 ```
+
+> You CREATE `handlers.py` first with your two functions.
+> Aditya Adarsh will ADD his two functions to the same file afterwards.
+> Send him your `handlers.py` when done so there's no merge conflict.
 
 ### Task 1 — `backend/agents/planner.py`
 ```python
@@ -129,14 +142,17 @@ async def run(run_id: str, zones: list) -> dict:
 ```
 
 Logic:
-1. For each zone, run a nearest-neighbour algorithm starting from the first delivery
-2. Calculate `naive_km` = sum of straight-line distances in original order
-3. Calculate `optimised_km` = sum of distances in optimised order
-4. Update each delivery's `route_data` and `eta` in Supabase
+1. For each zone, run a nearest-neighbour algorithm (start from the first delivery) to get the **optimised stop order**
+2. Call the **OSRM** API (`https://router.project-osrm.org/route/v1/driving/...`) with the coordinates of:
+   - the **original** order → gives `naive_km` (real road distance, unoptimised)
+   - the **optimised** order → gives `distance_km`, `duration_min`, and `geometry` (GeoJSON LineString)
+3. `optimised_km` = sum of OSRM `distance_km` across all zones; `naive_km` = sum of the unoptimised road distances
+4. Update each delivery's `route_data` (geometry) and `eta` in Supabase
 5. Log to `agent_logs`: `agent="route_optimizer"`
-6. Return `{ "routes": [...], "naive_km": float, "optimised_km": float }`
+6. Return per-zone objects matching the canonical Router contract in `docs/ARCHITECTURE.md`:
+   `{ "zone_1": { "distance_km", "duration_min", "geometry", "ordered_stops", "status" }, ..., "naive_km": float, "optimised_km": float }`
 
-Use `geopy.distance.geodesic` for distance calculation.
+Use `httpx` for the OSRM calls. Use `geopy.distance.geodesic` only as a fallback if OSRM is unreachable.
 
 ### Task 3 — `backend/tools/handlers.py` (your two tools)
 Implement `handle_plan_tasks(args)` and `handle_optimise_routes(args)`.
@@ -155,7 +171,7 @@ Add a `backend/data/sample_run.json` file with 10 sample Pune delivery addresses
 
 ---
 
-## CHETAN PRAJAPAT — Agent Dev & Presenter
+## ADITYA ADARSH — Backend Agent Dev (Comms & Analytics) + Presenter
 **Files to create:**
 ```
 backend/agents/notification.py
@@ -163,9 +179,9 @@ backend/agents/analytics.py
 backend/tools/handlers.py  (send_notifications + generate_report functions)
 ```
 
-> Note: Aditya Adarsh creates `handlers.py` first with his two functions.
+> Note: Aditya Patil creates `handlers.py` first with his two functions.
 > You ADD your two functions to the same file. Coordinate on WhatsApp so there's no conflict.
-> Easiest: Aditya sends you his `handlers.py` when done, you add to it.
+> Easiest: Aditya Patil sends you his `handlers.py` when done, you add to it.
 
 ### Task 1 — `backend/agents/notification.py`
 ```python
@@ -189,25 +205,32 @@ async def run(run_id: str, naive_km: float, optimised_km: float,
 ```
 
 Logic:
-1. Calculate all KPIs:
+1. Calculate all KPIs (these are the LOCKED constants — see `docs/ARCHITECTURE.md` → Canonical Constants):
    - `savings_km` = naive_km - optimised_km
    - `savings_pct` = savings_km / naive_km * 100
-   - `co2_avoided_kg` = savings_km * 0.21  (standard diesel emission factor)
-   - `cost_saved_inr` = savings_km * 12    (₹12 per km average fuel cost)
-   - `time_saved_min` = savings_km * 2     (2 min per km saved)
+   - `co2_avoided_kg` = savings_km * 0.21   (diesel emission factor)
+   - `cost_saved_inr` = savings_km * 8      (₹8 per km average fuel cost)
+   - `time_saved_min` = savings_km * 2.4    (2.4 min per km saved)
    - `on_time_rate` = deliveries_on_time / deliveries_total
-   - `trees_equivalent` = co2_avoided_kg / 21.7  (one tree absorbs 21.7 kg CO₂/year)
+   - `trees_equivalent` = co2_avoided_kg / 21.77  (one tree absorbs 21.77 kg CO₂/year)
 2. Insert row into Supabase `analytics` table
 3. Update `runs` table: set `status = "completed"`, `completed_at = now()`
 4. Return the full KPI dict
 
 ### Task 3 — Add to `backend/tools/handlers.py`
 Add `handle_send_notifications(args)` and `handle_generate_report(args)` functions.
-Get Aditya Adarsh's `handlers.py` first and append to it.
+Get Aditya Patil's `handlers.py` first and append to it.
+
+### Task 4 — Presentation & Submission (Phase 5–6)
+You own the deliverables that Chetan previously held (he's now on frontend):
+- **15-slide PPT** — problem, vision (Autonomous Agent OS), 5 agents, live demo, impact metrics, 15-vertical roadmap, team
+- **2–3 min demo video** — screen-record a full run end-to-end
+- **Unstop submission** — final upload before the Jun 13 10 PM IST deadline
+- Chetan remains the **live on-stage presenter**; you build the materials.
 
 ### BONUS Task (if time allows)
 Write `docs/DEMO_SCRIPT.md` — a 3-minute demo script for the presentation:
-- What you say at each step
+- What to say at each step
 - What to click / show on screen
 - The wow moment (show CO₂ savings number)
 
@@ -242,9 +265,9 @@ So every handler function must:
 1. Complete your files
 2. **Option A (preferred):** Create a branch named `your-name/round1`, push it, send Sameer the branch name
    ```
-   git checkout -b aditya-p/round1
+   git checkout -b chetan/round1
    git add .
-   git push origin aditya-p/round1
+   git push origin chetan/round1
    ```
 3. **Option B:** Send your files directly on WhatsApp (zip the folder)
 
@@ -258,14 +281,14 @@ When everyone submits, do this in order:
 
 - [ ] Copy `backend/main.py` from Sameer's own work
 - [ ] Copy `backend/agents/orchestrator.py` from Sameer's own work
-- [ ] Copy `backend/agents/planner.py` from Aditya Adarsh
-- [ ] Copy `backend/agents/route_optimizer.py` from Aditya Adarsh
-- [ ] Copy `backend/agents/notification.py` from Chetan
-- [ ] Copy `backend/agents/analytics.py` from Chetan
-- [ ] Combine `backend/tools/handlers.py` — merge Aditya Adarsh's 2 functions + Chetan's 2 functions into one file
-- [ ] Copy full `frontend/` folder from Aditya Patil
-- [ ] Copy `backend/data/sample_run.json` from Aditya Adarsh (bonus)
-- [ ] Copy `docs/DEMO_SCRIPT.md` from Chetan (bonus)
+- [ ] Copy `backend/agents/planner.py` from Aditya Patil
+- [ ] Copy `backend/agents/route_optimizer.py` from Aditya Patil
+- [ ] Copy `backend/agents/notification.py` from Aditya Adarsh
+- [ ] Copy `backend/agents/analytics.py` from Aditya Adarsh
+- [ ] Combine `backend/tools/handlers.py` — merge Aditya Patil's 2 functions + Aditya Adarsh's 2 functions into one file
+- [ ] Copy full `frontend/` folder from Chetan
+- [ ] Copy `backend/data/sample_run.json` from Aditya Patil (bonus)
+- [ ] Copy `docs/DEMO_SCRIPT.md` from Aditya Adarsh (bonus)
 - [ ] Run `pip install -r backend/requirements.txt` and test `GET /health`
 - [ ] Run `cd frontend && npm install && npm run dev` and check the UI loads
 - [ ] Commit everything: `"feat: complete Round 1 — all agents, FastAPI server, frontend dashboard"`
@@ -279,4 +302,4 @@ When everyone submits, do this in order:
 
 ---
 
-*Last updated: Jun 8, 2026 — NexusAI FAR AWAY 2026*
+*Last updated: Jun 10, 2026 — NexusAI FAR AWAY 2026*

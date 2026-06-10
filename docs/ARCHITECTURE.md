@@ -103,6 +103,38 @@ User
 
 ---
 
+## Canonical Constants & Output Shapes (LOCKED — single source of truth)
+
+> Every agent must use these exact values and shapes. If any other doc disagrees, **this section wins.**
+
+### Analytics formulas
+| Metric | Formula |
+|---|---|
+| `savings_km` | `naive_km - optimised_km` |
+| `savings_pct` | `savings_km / naive_km * 100` |
+| `co2_avoided_kg` | `savings_km * 0.21` |
+| `cost_saved_inr` | `savings_km * 8` |
+| `time_saved_min` | `savings_km * 2.4` |
+| `on_time_rate` | `deliveries_on_time / deliveries_total` |
+| `trees_equivalent` | `co2_avoided_kg / 21.77` |
+
+### Router (Route Optimizer) output — per zone
+Routes are computed with the **OSRM** road-routing API (`router.project-osrm.org`) so the map can draw real road geometry.
+
+```json
+{
+  "zone_1": {
+    "distance_km": 18.4,
+    "duration_min": 34.5,
+    "geometry": { "type": "LineString", "coordinates": [[77.21, 28.63]] },
+    "ordered_stops": ["address 1", "address 2"],
+    "status": "success"
+  }
+}
+```
+
+---
+
 ## Folder Structure
 
 ```
