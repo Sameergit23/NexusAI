@@ -1,0 +1,66 @@
+{
+  "goal": "Optimize Pune deliveries",
+  "num_vehicles": 3,
+  "deliveries": [
+    {
+      "id": 1,
+      "address": "FC Road, Shivajinagar, Pune",
+      "lat": 18.5204,
+      "lng": 73.8567
+    },
+    {
+      "id": 2,
+      "address": "Kothrud Depot, Pune",
+      "lat": 18.5074,
+      "lng": 73.8077
+    },
+    {
+      "id": 3,
+      "address": "Aundh, Pune",
+      "lat": 18.5590,
+      "lng": 73.8077
+    },
+    {
+      "id": 4,
+      "address": "Baner, Pune",
+      "lat": 18.5642,
+      "lng": 73.7769
+    },
+    {
+      "id": 5,
+      "address": "Hinjawadi Phase 1, Pune",
+      "lat": 18.5913,
+      "lng": 73.7389
+    },
+    {
+      "id": 6,
+      "address": "Wakad, Pune",
+      "lat": 18.5975,
+      "lng": 73.7898
+    },
+    {
+      "id": 7,
+      "address": "Hadapsar, Pune",
+      "lat": 18.5089,
+      "lng": 73.9260
+    },
+    {
+      "id": 8,
+      "address": "Magarpatta City, Pune",
+      "lat": 18.5167,
+      "lng": 73.9250
+    },
+    {
+      "id": 9,
+      "address": "Kharadi, Pune",
+      "lat": 18.5519,
+      "lng": 73.9477
+    },
+    {
+      "id": 10,
+      "address": "Viman Nagar, Pune",
+      "lat": 18.5679,
+      "lng": 73.9143
+    }
+  ]
+}
