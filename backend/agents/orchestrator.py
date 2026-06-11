@@ -66,13 +66,14 @@ async def _execute(run_id: str) -> dict:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             db.log(run_id, "orchestrator",
-                   "No ANTHROPIC_API_KEY set - running deterministic fallback pipeline", "warning")
+                   "No ANTHROPIC_API_KEY - running deterministic pipeline", "warning")
             return await _fallback(run_id)
         return await _agentic_loop(run_id, api_key)
-    except Exception as e:  # whole-run safety net
-        db.log(run_id, "orchestrator", f"Run failed: {e}", "error")
-        db.set_run_status(run_id, "failed")
-        return {"run_id": run_id, "error": str(e)}
+    except Exception as e:
+        err = str(e)
+        # If Claude is unavailable (billing, rate limit, network), fall back gracefully.
+        db.log(run_id, "orchestrator", f"Claude unavailable ({err[:120]}) - switching to deterministic pipeline", "warning")
+        return await _fallback(run_id)
 
 
 async def _agentic_loop(run_id: str, api_key: str) -> dict:
