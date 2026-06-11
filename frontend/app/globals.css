@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: #f9fafb;
+  color: #1f2937;
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* Leaflet container needs an explicit height and light background */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: #f3f4f6;
+}

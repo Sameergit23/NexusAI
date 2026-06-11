@@ -11,11 +11,12 @@ import { getRun, AGENTS, type RunResponse, type AgentName } from "@/lib/api";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import mockData from "@/mock/run.json";
 
 const AGENT_META: Record<AgentName, { label: string; icon: any }> = {
   orchestrator: { label: "Orchestrator", icon: Brain },
   planner: { label: "Planner", icon: MapIcon },
-  route_optimizer: { label: "Route Optimizer", icon: Route },
+  route_optimizer: { label: "Router", icon: Route },
   notification: { label: "Communicator", icon: Mail },
   analytics: { label: "Analytics", icon: BarChart3 },
 };
@@ -36,13 +37,8 @@ export default function RunPage() {
       } catch (err) {
         const apiEnv = process.env.NEXT_PUBLIC_API_URL;
         if (!apiEnv || apiEnv === "http://localhost:8000") {
-          try {
-            const mock = await import("@/mock/run.json");
-            setData(mock.default as any);
-            clearInterval(timer.current);
-          } catch (mockErr) {
-            console.error("Failed to load mock data:", mockErr);
-          }
+          setData(mockData as any);
+          clearInterval(timer.current);
         }
       }
     }
@@ -87,10 +83,10 @@ export default function RunPage() {
     <main className="mx-auto max-w-6xl px-6 py-8">
       <header className="mb-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-indigo-300">NexusAI</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900">NexusAI</h1>
           <StatusBadge status={status} />
         </div>
-        <p className="mt-1 text-sm text-gray-400">{data?.run?.goal}</p>
+        <p className="mt-2 text-sm font-medium text-gray-600">{data?.run?.goal}</p>
       </header>
 
       {/* Agent cards */}
@@ -101,26 +97,26 @@ export default function RunPage() {
           return (
             <div
               key={a}
-              className={`rounded-xl border p-3 ${
+              className={`rounded-lg bg-white p-4 shadow-soft border border-gray-200 border-l-4 transition ${
                 st === "running"
-                  ? "border-nexus-accent bg-indigo-500/10"
+                  ? "border-l-indigo-500 bg-indigo-50/10"
                   : st === "done"
-                  ? "border-nexus-good/40 bg-emerald-500/5"
-                  : "border-nexus-border bg-nexus-panel"
+                  ? "border-l-emerald-500 bg-emerald-50/10"
+                  : "border-l-gray-300"
               }`}
             >
               <div className="flex items-center justify-between">
-                <Icon size={18} className="text-gray-300" />
+                <Icon size={18} className="text-gray-500" />
                 {st === "done" ? (
-                  <CheckCircle2 size={16} className="text-nexus-good" />
+                  <CheckCircle2 size={16} className="text-emerald-500" />
                 ) : st === "running" ? (
-                  <Loader2 size={16} className="animate-spin text-nexus-accent" />
+                  <Loader2 size={16} className="animate-spin text-indigo-500" />
                 ) : (
-                  <Circle size={16} className="text-gray-600" />
+                  <Circle size={16} className="text-gray-300" />
                 )}
               </div>
-              <p className="mt-2 text-sm font-medium">{label}</p>
-              <p className="text-xs capitalize text-gray-500">{st}</p>
+              <p className="mt-2 text-sm font-bold text-gray-800">{label}</p>
+              <p className="text-xs font-semibold capitalize text-gray-500">{st}</p>
             </div>
           );
         })}
@@ -128,20 +124,20 @@ export default function RunPage() {
 
       {/* Recharts Distance Comparison (Naive vs Optimised) */}
       {report && (
-        <div className="mb-6 rounded-xl border border-nexus-border bg-nexus-panel p-5">
-          <h2 className="mb-4 text-sm font-semibold text-gray-300">Distance Optimization (Naive vs. Optimised)</h2>
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-soft">
+          <h2 className="mb-4 text-sm font-semibold text-gray-700">Distance Optimization (Naive vs. Optimised)</h2>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={false} />
-                <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} />
+                <XAxis dataKey="name" stroke="#4b5563" fontSize={12} tickLine={false} />
+                <YAxis stroke="#4b5563" fontSize={12} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#121826", borderColor: "#1f2937", borderRadius: "8px" }}
-                  itemStyle={{ color: "#e5e7eb" }}
-                  labelStyle={{ color: "#9ca3af" }}
+                  contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e5e7eb", borderRadius: "8px" }}
+                  itemStyle={{ color: "#1f2937" }}
+                  labelStyle={{ color: "#4b5563" }}
                 />
                 <Bar dataKey="Naive" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Optimised" fill="#34d399" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Optimised" fill="#10b981" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -151,32 +147,32 @@ export default function RunPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Map */}
         <div className="lg:col-span-2">
-          <div className="h-[420px] overflow-hidden rounded-xl border border-nexus-border">
+          <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-soft">
             <MapView routes={data?.routes ?? null} />
           </div>
         </div>
 
         {/* Live log feed */}
-        <div className="rounded-xl border border-nexus-border bg-nexus-panel p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-300">Agent reasoning log</h2>
-          <div className="flex max-h-[372px] flex-col gap-2 overflow-y-auto text-xs">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-soft">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Agent reasoning log</h2>
+          <div className="flex max-h-[372px] flex-col gap-2 overflow-y-auto font-mono text-xs text-gray-600">
             {logs.map((l, i) => (
-              <div key={i} className="border-l-2 border-nexus-border pl-2">
+              <div key={i} className="border-l-2 border-gray-300 pl-2 py-0.5">
                 <span
-                  className={`font-mono ${
+                  className={`font-semibold ${
                     l.level === "error"
-                      ? "text-red-400"
+                      ? "text-red-600"
                       : l.level === "warning"
-                      ? "text-amber-400"
-                      : "text-nexus-accent2"
+                      ? "text-amber-600"
+                      : "text-indigo-600"
                   }`}
                 >
                   {l.agent}
                 </span>
-                <p className="text-gray-300">{l.message}</p>
+                <p className="text-gray-700 mt-0.5">{l.message}</p>
               </div>
             ))}
-            {logs.length === 0 && <p className="text-gray-600">Waiting for agents…</p>}
+            {logs.length === 0 && <p className="text-gray-400 italic">Waiting for agents…</p>}
           </div>
         </div>
       </div>
@@ -184,16 +180,16 @@ export default function RunPage() {
       {/* Impact report */}
       {report && (
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-300">Impact report</h2>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Impact report</h2>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Metric icon={TrendingDown} label="Distance saved" value={`${report.savings_km} km`} sub={`${report.savings_pct}% shorter`} />
             <Metric icon={Leaf} label="CO₂ avoided" value={`${report.co2_avoided_kg} kg`} sub={`${report.trees_equivalent} trees/yr`} />
             <Metric icon={IndianRupee} label="Cost saved" value={`₹${report.cost_saved_inr}`} />
             <Metric icon={Clock} label="Time saved" value={`${report.time_saved_min} min`} sub={`${Math.round(report.on_time_rate * 100)}% on-time`} />
           </div>
-          <div className="mt-3 rounded-xl border border-nexus-border bg-nexus-panel p-4 text-sm text-gray-400">
-            Naive routing: <b className="text-gray-200">{report.naive_km} km</b> →
-            optimised: <b className="text-nexus-good">{report.optimised_km} km</b>
+          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-soft">
+            Naive routing: <b className="text-gray-900 font-semibold">{report.naive_km} km</b> →
+            optimised: <b className="text-emerald-600 font-bold">{report.optimised_km} km</b>
           </div>
         </section>
       )}
@@ -203,12 +199,12 @@ export default function RunPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    running: "border-nexus-accent text-nexus-accent",
-    completed: "border-nexus-good text-nexus-good",
-    failed: "border-red-500 text-red-400",
+    running: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    failed: "border-red-200 bg-red-50 text-red-700",
   };
   return (
-    <span className={`rounded-full border px-3 py-1 text-xs capitalize ${map[status] ?? "border-gray-600 text-gray-400"}`}>
+    <span className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize shadow-sm ${map[status] ?? "border-gray-200 bg-gray-50 text-gray-600"}`}>
       {status}
     </span>
   );
@@ -216,11 +212,11 @@ function StatusBadge({ status }: { status: string }) {
 
 function Metric({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-nexus-border bg-nexus-panel p-4">
-      <Icon size={18} className="text-nexus-accent2" />
-      <p className="mt-2 text-xl font-bold text-gray-100">{value}</p>
-      <p className="text-xs text-gray-400">{label}</p>
-      {sub && <p className="text-xs text-nexus-good">{sub}</p>}
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-soft">
+      <Icon size={18} className="text-indigo-500" />
+      <p className="mt-2 text-xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs font-semibold text-gray-500">{label}</p>
+      {sub && <p className="text-xs font-semibold text-emerald-600">{sub}</p>}
     </div>
   );
 }
