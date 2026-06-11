@@ -1,9 +1,0 @@
-anthropic
-fastapi
-uvicorn
-supabase
-geopy
-httpx
-resend
-python-dotenv
-pydantic
