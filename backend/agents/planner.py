@@ -1,4 +1,4 @@
-import time
+import asyncio
 from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
 from backend.db import log
@@ -21,9 +21,10 @@ async def run(goal, deliveries, num_vehicles, run_id):
                 delivery.get("lat") is None
                 or delivery.get("lng") is None
             ):
-                location = geolocator.geocode(delivery["address"])
+                # Run sync geopy call in a thread so we don't block the event loop.
+                location = await asyncio.to_thread(geolocator.geocode, delivery["address"])
 
-                time.sleep(1)  
+                await asyncio.sleep(1)  # Nominatim rate limit (1 req/sec)
 
                 if location:
                     delivery["lat"] = location.latitude
