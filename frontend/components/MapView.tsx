@@ -30,7 +30,7 @@ export default function MapView({ routes }: { routes: Record<string, Zone | numb
       : [18.5204, 73.8567]; // Pune
 
   return (
-    <MapContainer center={center} zoom={12} scrollWheelZoom className="h-full w-full rounded-xl">
+    <MapContainer center={center} zoom={12} scrollWheelZoom style={{ height: "100%", width: "100%" }} className="rounded-xl">
       <TileLayer
         attribution='&copy; OpenStreetMap'
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

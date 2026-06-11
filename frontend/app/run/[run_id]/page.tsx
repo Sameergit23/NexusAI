@@ -11,6 +11,7 @@ import { getRun, AGENTS, type RunResponse, type AgentName } from "@/lib/api";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import mockData from "@/mock/run.json";
 
 const AGENT_META: Record<AgentName, { label: string; icon: any }> = {
   orchestrator: { label: "Orchestrator", icon: Brain },
@@ -36,13 +37,8 @@ export default function RunPage() {
       } catch (err) {
         const apiEnv = process.env.NEXT_PUBLIC_API_URL;
         if (!apiEnv || apiEnv === "http://localhost:8000") {
-          try {
-            const mock = await import("@/mock/run.json");
-            setData(mock.default as any);
-            clearInterval(timer.current);
-          } catch (mockErr) {
-            console.error("Failed to load mock data:", mockErr);
-          }
+          setData(mockData as any);
+          clearInterval(timer.current);
         }
       }
     }
