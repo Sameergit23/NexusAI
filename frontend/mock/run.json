@@ -1,0 +1,100 @@
+{
+  "run": {
+    "id": "mock-run-123",
+    "goal": "Deliver 10 packages across Pune today using 2 vehicles, minimise distance and notify every customer with an ETA",
+    "status": "completed",
+    "num_vehicles": 2,
+    "created_at": "2026-06-10T17:30:00.000Z",
+    "completed_at": "2026-06-10T17:32:15.000Z"
+  },
+  "logs": [
+    { "agent": "orchestrator", "message": "Goal received: Deliver 10 packages across Pune today using 2 vehicles", "level": "info", "created_at": "2026-06-10T17:30:02.000Z" },
+    { "agent": "orchestrator", "message": "Reasoning -> calling plan_tasks", "level": "info", "created_at": "2026-06-10T17:30:05.000Z" },
+    { "agent": "planner", "message": "Planning 10 deliveries into 2 zones", "level": "info", "created_at": "2026-06-10T17:30:10.000Z" },
+    { "agent": "planner", "message": "Geocoded 10 addresses successfully. Created 2 zones (V1 and V2)", "level": "info", "created_at": "2026-06-10T17:30:15.000Z" },
+    { "agent": "orchestrator", "message": "Reasoning -> calling optimise_routes", "level": "info", "created_at": "2026-06-10T17:30:20.000Z" },
+    { "agent": "route_optimizer", "message": "Optimising routes for 2 zones via OSRM", "level": "info", "created_at": "2026-06-10T17:30:30.000Z" },
+    { "agent": "route_optimizer", "message": "zone_1 (V1): 18.2 km, 43 min [success]", "level": "info", "created_at": "2026-06-10T17:30:45.000Z" },
+    { "agent": "route_optimizer", "message": "zone_2 (V2): 10.0 km, 25 min [success]", "level": "info", "created_at": "2026-06-10T17:31:00.000Z" },
+    { "agent": "route_optimizer", "message": "Total distance: naive 45.5 km -> optimised 28.2 km", "level": "info", "created_at": "2026-06-10T17:31:10.000Z" },
+    { "agent": "orchestrator", "message": "Reasoning -> calling send_notifications", "level": "info", "created_at": "2026-06-10T17:31:20.000Z" },
+    { "agent": "notification", "message": "Sending ETA messages to 10 recipients via WhatsApp/SMS", "level": "info", "created_at": "2026-06-10T17:31:35.000Z" },
+    { "agent": "notification", "message": "All notifications sent successfully", "level": "info", "created_at": "2026-06-10T17:31:45.000Z" },
+    { "agent": "orchestrator", "message": "Reasoning -> calling generate_report", "level": "info", "created_at": "2026-06-10T17:31:50.000Z" },
+    { "agent": "analytics", "message": "Impact: 17.3 km saved, 3.63 kg CO2, ₹138.4 saved (0.17 trees/yr)", "level": "info", "created_at": "2026-06-10T17:32:00.000Z" },
+    { "agent": "orchestrator", "message": "Goal verified complete", "level": "info", "created_at": "2026-06-10T17:32:15.000Z" }
+  ],
+  "routes": {
+    "zone_1": {
+      "distance_km": 18.2,
+      "duration_min": 43.0,
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [73.841, 18.5236],
+          [73.8522, 18.5308],
+          [73.8077, 18.5074],
+          [73.7868, 18.559],
+          [73.7389, 18.5912]
+        ]
+      },
+      "ordered_stops": [
+        "FC Road, Shivajinagar, Pune",
+        "Shivajinagar, Pune",
+        "Kothrud, Pune",
+        "Baner, Pune",
+        "Hinjewadi Phase 1, Pune"
+      ],
+      "vehicle_id": "V1",
+      "status": "ok"
+    },
+    "zone_2": {
+      "distance_km": 10.0,
+      "duration_min": 25.0,
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [73.8939, 18.5362],
+          [73.879, 18.5125],
+          [73.926, 18.5089],
+          [73.9143, 18.5679],
+          [73.8077, 18.5589]
+        ]
+      },
+      "ordered_stops": [
+        "Koregaon Park, Pune",
+        "Pune Camp, Pune",
+        "Hadapsar, Pune",
+        "Viman Nagar, Pune",
+        "Aundh, Pune"
+      ],
+      "vehicle_id": "V2",
+      "status": "ok"
+    },
+    "naive_km": 45.5,
+    "optimised_km": 28.2
+  },
+  "analytics": {
+    "naive_km": 45.5,
+    "optimised_km": 28.2,
+    "savings_km": 17.3,
+    "savings_pct": 38.02,
+    "co2_avoided_kg": 3.63,
+    "cost_saved_inr": 138.4,
+    "time_saved_min": 41.52,
+    "on_time_rate": 0.9,
+    "trees_equivalent": 0.17
+  },
+  "deliveries": [
+    { "id": "1", "address": "FC Road, Shivajinagar, Pune", "lat": 18.5236, "lng": 73.841 },
+    { "id": "2", "address": "Koregaon Park, Pune", "lat": 18.5362, "lng": 73.8939 },
+    { "id": "3", "address": "Shivajinagar, Pune", "lat": 18.5308, "lng": 73.8522 },
+    { "id": "4", "address": "Kothrud, Pune", "lat": 18.5074, "lng": 73.8077 },
+    { "id": "5", "address": "Hadapsar, Pune", "lat": 18.5089, "lng": 73.926 },
+    { "id": "6", "address": "Viman Nagar, Pune", "lat": 18.5679, "lng": 73.9143 },
+    { "id": "7", "address": "Aundh, Pune", "lat": 18.5589, "lng": 73.8077 },
+    { "id": "8", "address": "Pune Camp, Pune", "lat": 18.5125, "lng": 73.879 },
+    { "id": "9", "address": "Baner, Pune", "lat": 18.559, "lng": 73.7868 },
+    { "id": "10", "address": "Hinjewadi Phase 1, Pune", "lat": 18.5912, "lng": 73.7389 }
+  ]
+}
