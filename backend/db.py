@@ -27,12 +27,13 @@ def _now() -> str:
 
 
 # ── runs ─────────────────────────────────────────────────────────────
-def create_run(goal: str, num_vehicles: int) -> str:
+def create_run(goal: str, num_vehicles: int, vertical: str = "logistics") -> str:
     run_id = str(uuid.uuid4())
     _runs[run_id] = {
         "id": run_id,
         "goal": goal,
         "num_vehicles": num_vehicles,
+        "vertical": vertical,
         "status": "running",
         "created_at": _now(),
         "completed_at": None,

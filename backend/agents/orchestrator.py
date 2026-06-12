@@ -100,8 +100,10 @@ async def _execute(run_id: str) -> dict:
     if db.ctx_get(run_id, "vertical", "logistics") == "hr":
         try:
             _hr_tool_map()
-        except ImportError as e:
-            # HR agents not merged yet — fail this run, never touch logistics.
+        except (ImportError, AttributeError) as e:
+            # HR agents missing or incomplete — fail this run, never touch logistics.
+            # AttributeError covers a merged hr_agents whose handlers don't match
+            # the tool contract yet (e.g. only one teammate's half is in).
             await db.log(run_id, "orchestrator", f"HR agents unavailable: {e}", "error")
             db.set_run_status(run_id, "failed")
             return _result(run_id)
@@ -116,7 +118,14 @@ async def _execute(run_id: str) -> dict:
         err = str(e)
         # If Claude is unavailable (billing, rate limit, network), fall back gracefully.
         await db.log(run_id, "orchestrator", f"Claude unavailable ({err[:120]}) - switching to deterministic pipeline", "warning")
-        return await _fallback(run_id)
+        try:
+            return await _fallback(run_id)
+        except Exception as e2:
+            # Runs execute as fire-and-forget asyncio tasks: if this escapes, the
+            # exception is swallowed and the run stays "running" forever in the UI.
+            await db.log(run_id, "orchestrator", f"Fallback failed: {e2}", "error")
+            db.set_run_status(run_id, "failed")
+            return _result(run_id)
 
 
 async def _agentic_loop(run_id: str, api_key: str) -> dict:
