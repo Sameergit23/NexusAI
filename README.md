@@ -4,7 +4,7 @@
 
 ![FAR AWAY 2026](https://img.shields.io/badge/FAR%20AWAY-2026%20Hackathon-blueviolet?style=for-the-badge)
 ![Theme](https://img.shields.io/badge/Theme-Agentic%20%26%20Autonomous%20Systems-blue?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-In%20Development-orange?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Demo%20Ready-brightgreen?style=for-the-badge)
 
 ---
 
@@ -49,8 +49,11 @@ NexusAI strictly follows six principles:
 
 The architecture is universal. The agents don't change; only the tools they call do.
 
-**Round 1 demo:** Logistics & Delivery Operations
-**Roadmap (15 categories):** Customer Support · Sales · HR · Healthcare · Finance · Education · Manufacturing · Real Estate · Travel · Legal · Government · and more
+**Live today — two verticals on the same agent OS:**
+- **Logistics & Delivery Operations** (Round 1) — Planner / Route Optimizer / Communicator / Analytics
+- **HR Onboarding** (Round 2) — HR Planner / Onboarding Scheduler / HR Communicator / HR Reporter (`backend/hr_agents/`)
+
+**Roadmap (15 categories):** Customer Support · Sales · Healthcare · Finance · Education · Manufacturing · Real Estate · Travel · Legal · Government · and more
 
 ---
 
@@ -71,8 +74,8 @@ The architecture is universal. The agents don't change; only the tools they call
 | Layer | Technology |
 |---|---|
 | AI / Agents | Claude API (Anthropic) — claude-sonnet-4-6 with tool use |
-| Backend | Python 3.11 · FastAPI · Uvicorn · Server-Sent Events |
-| Database | Supabase (PostgreSQL) |
+| Backend | Python 3.11 · FastAPI · Uvicorn · live polling API |
+| Database | In-memory run store (Supabase schema prepared in `docs/`) |
 | Notifications | Resend |
 | Geospatial | Geopy (geocoding) · OSRM (road routing) |
 | Frontend | Next.js 14 · TypeScript · Tailwind CSS · Leaflet · Recharts |
@@ -93,14 +96,14 @@ The architecture is universal. The agents don't change; only the tools they call
 ### Backend
 
 ```bash
-cd backend
+# from the repo root
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # macOS / Linux
-pip install -r requirements.txt
-cp ../.env.example ../.env
-# Fill in your keys in .env
-uvicorn main:app --reload
+pip install -r backend/requirements.txt
+cp .env.example backend/.env
+# Fill in your keys in backend/.env (optional — runs in simulated mode without them)
+uvicorn backend.main:app --reload
 ```
 
 ### Frontend
@@ -108,9 +111,18 @@ uvicorn main:app --reload
 ```bash
 cd frontend
 npm install
-cp ../.env.example .env.local
-# Set NEXT_PUBLIC_API_URL in .env.local
 npm run dev
+# optional: set NEXT_PUBLIC_API_URL in frontend/.env.local (defaults to http://localhost:8000)
+```
+
+### Tests (no API keys needed)
+
+```bash
+# from the repo root
+PYTHONPATH=. python backend/tests/test_hr_routing.py      # full integration check (both verticals)
+PYTHONPATH=. python backend/tests/test_planner_router.py  # logistics planner + router
+PYTHONPATH=. python backend/tests/test_hr_planner.py      # hr planner + scheduler
+PYTHONPATH=. python backend/tests/test_hr_comms.py        # hr communicator + reporter
 ```
 
 ### Database
@@ -123,10 +135,10 @@ Run `docs/supabase_schema.sql` in your Supabase SQL editor to create all tables.
 
 | Name | Role | Sponsor |
 |---|---|---|
-| **Sameer Akhtar** | Lead Developer · Integration & Deployment Lead | Claude Pro |
-| **Aditya Patil** | Frontend Developer | Claude Pro |
-| **Aditya Adarsh** | Backend Agent Developer | Antigravity |
-| **Chetan Prajapat** | Backend Agent Developer & Presenter | Antigravity |
+| **Sameer Akhtar** | Lead Developer · Orchestrator, Integration & Deployment | Claude Pro |
+| **Aditya Patil** | Backend Agent Developer — Planning & Scheduling | Claude Pro |
+| **Aditya Adarsh** | Backend Agent Developer — Comms & Analytics | Antigravity |
+| **Chetan Prajapat** | Frontend Developer & Presenter | Antigravity |
 
 ---
 
