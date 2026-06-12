@@ -107,17 +107,27 @@ async def _execute(run_id: str) -> dict:
             await db.log(run_id, "orchestrator", f"HR agents unavailable: {e}", "error")
             db.set_run_status(run_id, "failed")
             return _result(run_id)
+    # Provider chain: Claude -> Gemini (free tier) -> deterministic pipeline.
     try:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            await db.log(run_id, "orchestrator",
-                         "No ANTHROPIC_API_KEY - running deterministic pipeline", "warning")
-            return await _fallback(run_id)
-        return await _agentic_loop(run_id, api_key)
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if api_key:
+            try:
+                return await _agentic_loop(run_id, api_key)
+            except Exception as e:
+                if not gemini_key:
+                    raise
+                await db.log(run_id, "orchestrator",
+                             f"Claude unavailable ({str(e)[:120]}) - trying Gemini", "warning")
+        if gemini_key:
+            return await _gemini_loop(run_id, gemini_key)
+        await db.log(run_id, "orchestrator",
+                     "No ANTHROPIC_API_KEY or GEMINI_API_KEY - running deterministic pipeline", "warning")
+        return await _fallback(run_id)
     except Exception as e:
         err = str(e)
-        # If Claude is unavailable (billing, rate limit, network), fall back gracefully.
-        await db.log(run_id, "orchestrator", f"Claude unavailable ({err[:120]}) - switching to deterministic pipeline", "warning")
+        # If the LLM is unavailable (billing, rate limit, network), fall back gracefully.
+        await db.log(run_id, "orchestrator", f"LLM unavailable ({err[:120]}) - switching to deterministic pipeline", "warning")
         try:
             return await _fallback(run_id)
         except Exception as e2:
@@ -179,6 +189,75 @@ async def _agentic_loop(run_id: str, api_key: str) -> dict:
                 "content": json.dumps(_summarise(result))[:6000],
             })
         messages.append({"role": "user", "content": tool_results})
+
+    db.set_run_status(run_id, "completed")
+    return _result(run_id)
+
+
+async def _gemini_loop(run_id: str, api_key: str) -> dict:
+    """Same agentic loop on Gemini's free tier (OpenAI-compatible endpoint).
+    Used when no Anthropic credit is available."""
+    from openai import OpenAI
+
+    ai = OpenAI(
+        api_key=api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    goal = db.ctx_get(run_id, "goal")
+    system_prompt, tools, tool_map = _tooling(run_id)
+    oai_tools = [
+        {"type": "function",
+         "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
+        for t in tools
+    ]
+
+    if db.ctx_get(run_id, "vertical", "logistics") == "hr":
+        payload = {"goal": goal, "employees": db.ctx_get(run_id, "employees")}
+    else:
+        payload = {
+            "goal": goal,
+            "deliveries": db.ctx_get(run_id, "deliveries"),
+            "num_vehicles": db.ctx_get(run_id, "num_vehicles", 1),
+        }
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": json.dumps(payload)},
+    ]
+
+    for _ in range(MAX_STEPS):
+        resp = await asyncio.to_thread(
+            ai.chat.completions.create,
+            model=model, messages=messages, tools=oai_tools,
+        )
+        msg = resp.choices[0].message
+
+        if not msg.tool_calls:                       # self-verification: model is done
+            if msg.content:
+                await db.log(run_id, "orchestrator", msg.content.strip())
+            await db.log(run_id, "orchestrator", "Goal verified complete")
+            break
+
+        messages.append({
+            "role": "assistant",
+            "content": msg.content or "",
+            "tool_calls": [tc.model_dump() for tc in msg.tool_calls],
+        })
+        for tc in msg.tool_calls:
+            await db.log(run_id, "orchestrator", f"Reasoning -> calling {tc.function.name}")
+            try:                                     # autonomous failure recovery
+                args = json.loads(tc.function.arguments or "{}")
+                args["run_id"] = run_id
+                result = await tool_map[tc.function.name](args)
+            except Exception as e:
+                await db.log(run_id, "orchestrator", f"{tc.function.name} failed: {e}", "error")
+                result = {"error": str(e)}
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": json.dumps(_summarise(result))[:6000],
+            })
 
     db.set_run_status(run_id, "completed")
     return _result(run_id)
