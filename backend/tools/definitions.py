@@ -152,3 +152,84 @@ ALL_TOOLS = [
         },
     },
 ]
+
+
+# ── HR onboarding vertical (handlers live in backend/hr_agents/handlers.py) ──
+HR_TOOLS = [
+    {
+        "name": "plan_onboarding",
+        "description": (
+            "Analyse an onboarding goal and produce a structured onboarding plan. "
+            "Groups the new hires into team cohorts and assigns each hire a standard "
+            "Day 1–5 task checklist. Call this FIRST."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "Unique identifier for the current onboarding run.",
+                },
+                "goal": {
+                    "type": "string",
+                    "description": "The plain-English onboarding goal provided by the user.",
+                },
+            },
+            "required": ["run_id"],
+        },
+    },
+    {
+        "name": "book_meetings",
+        "description": (
+            "Take the cohorts produced by the HR Planner and book the standard 1:1 "
+            "meetings for every new hire — manager 1:1, buddy 1:1 and HR 1:1 — into "
+            "the onboarding calendar. Call AFTER planning."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "Unique identifier for the current onboarding run.",
+                },
+            },
+            "required": ["run_id"],
+        },
+    },
+    {
+        "name": "send_welcome_emails",
+        "description": (
+            "Draft a short personalised welcome email for every new hire (referencing "
+            "their role, team and start date) and send it via the Resend API. "
+            "Call AFTER meetings are booked. Returns sent/failed counts."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "Unique identifier for the current onboarding run.",
+                },
+            },
+            "required": ["run_id"],
+        },
+    },
+    {
+        "name": "hr_report",
+        "description": (
+            "Compute the final onboarding readiness report and persist it — readiness "
+            "percentage (tasks done / total), hours saved, cost saved in INR and "
+            "emails sent. Call LAST."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "Unique identifier for the completed onboarding run.",
+                },
+            },
+            "required": ["run_id"],
+        },
+    },
+]
