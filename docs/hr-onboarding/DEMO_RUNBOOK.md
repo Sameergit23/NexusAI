@@ -84,8 +84,8 @@ cost_saved_inr, emails_sent`.
 ## 4. Pre-demo checklist
 
 - [ ] `git pull` on main, restart backend (an old process serves old code!)
-- [ ] `PYTHONPATH=. python backend/test_hr_routing.py` → ALL CHECKS PASSED
-- [ ] `PYTHONPATH=. python backend/test_planner_router.py` → clean JSON
+- [ ] `PYTHONPATH=. python backend/tests/test_hr_routing.py` → ALL CHECKS PASSED
+- [ ] `PYTHONPATH=. python backend/tests/test_planner_router.py` → clean JSON
 - [ ] `cd frontend && npm run build` → compiles
 - [ ] Run Demo A once, then Demo B once, in the real browser
 - [ ] Decide: keys in `.env` (live Claude) or no keys (simulated, zero risk)
