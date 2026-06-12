@@ -3,13 +3,14 @@
 Run with NO api keys:
     PYTHONPATH=. python backend/test_hr_routing.py
 
-What it does:
-- if backend/hr_agents is merged -> runs the real HR fallback pipeline end-to-end
-  and checks the report shape against docs/hr-onboarding/OVERVIEW.md
-- if not merged yet -> stubs the four handlers to verify the orchestrator
-  routes the hr vertical correctly, and that a missing hr_agents fails the
-  run gracefully instead of crashing the server
-- always -> logistics fallback regression (the Round 1 demo must keep working)
+Adapts to the state of backend/hr_agents:
+- missing entirely  -> graceful-failure check, then full-stub pipeline check
+- partially merged  -> graceful-failure check, then hybrid run (real handlers
+  where they exist, stubs for the rest) so the merged half is exercised
+  through the orchestrator
+- complete          -> real pipeline end-to-end, report checked against
+  docs/hr-onboarding/OVERVIEW.md
+Always finishes with the logistics fallback regression (Round 1 must work).
 """
 import asyncio
 import json
@@ -28,6 +29,13 @@ EMPLOYEES = [
     {"id": "2", "name": "Arjun", "role": "Frontend Engineer", "team": "Web", "email": "a@x.com"},
 ]
 
+HANDLER_NAMES = [
+    "handle_plan_onboarding",
+    "handle_book_meetings",
+    "handle_send_welcome_emails",
+    "handle_hr_report",
+]
+
 REPORT_KEYS = {
     "total_hires", "tasks_completed", "tasks_total",
     "readiness_pct", "hours_saved", "cost_saved_inr", "emails_sent",
@@ -35,69 +43,106 @@ REPORT_KEYS = {
 
 
 def make_hr_run() -> str:
-    run_id = db.create_run("Onboard 2 engineers joining Monday", 0)
+    run_id = db.create_run("Onboard 2 engineers joining Monday", 0, vertical="hr")
     db.ctx_set(run_id, "vertical", "hr")
     db.ctx_set(run_id, "goal", "Onboard 2 engineers joining Monday")
     db.ctx_set(run_id, "employees", EMPLOYEES)
     return run_id
 
 
-def hr_agents_available() -> bool:
+def real_handlers():
+    """The real handlers module, or None if backend/hr_agents isn't merged."""
     try:
-        from backend.hr_agents import handlers  # noqa: F401
-        return True
+        from backend.hr_agents import handlers
+        return handlers
     except ImportError:
-        return False
+        return None
 
 
-def install_stub_handlers(calls: list) -> None:
-    """Stand-in hr_agents so routing is testable before the real ones merge."""
-    def mk(name, ctx_key=None, value=None):
-        async def h(args):
-            calls.append(name)
-            if ctx_key:
-                db.ctx_set(args["run_id"], ctx_key, value)
-            return {"ok": name}
-        return h
+def stub(name, ctx_key=None, value=None):
+    async def h(args):
+        if ctx_key:
+            db.ctx_set(args["run_id"], ctx_key, value)
+        return {"ok": name}
+    return h
 
+
+async def stub_report(args):
+    """Reporter stub: computes from ctx exactly like the real one will,
+    so hybrid runs validate that upstream handlers fed the context."""
+    rid = args["run_id"]
+    total = db.ctx_get(rid, "tasks_total", 0)
+    hires = len(db.ctx_get(rid, "employees") or [])
+    report = {
+        "total_hires": hires,
+        "tasks_completed": total,
+        "tasks_total": total,
+        "readiness_pct": 100 if total else 0,
+        "hours_saved": hires * 6,
+        "cost_saved_inr": hires * 6 * 1500,
+        "emails_sent": (db.ctx_get(rid, "notifications") or {}).get("sent", 0),
+    }
+    db.ctx_set(rid, "report", report)
+    return report
+
+
+def install_handlers(real) -> list:
+    """Put a handlers module in sys.modules: real functions where they exist,
+    stubs elsewhere. Returns the list of stubbed names."""
+    stubs = {
+        "handle_plan_onboarding": stub("plan_onboarding", "tasks_total", 14),
+        "handle_book_meetings": stub("book_meetings", "meetings", {"total_meetings": 6}),
+        "handle_send_welcome_emails": stub("send_welcome_emails", "notifications", {"sent": 2, "failed": 0, "simulated": True}),
+        "handle_hr_report": stub_report,
+    }
     pkg = types.ModuleType("backend.hr_agents")
     mod = types.ModuleType("backend.hr_agents.handlers")
-    mod.handle_plan_onboarding = mk("plan_onboarding", "tasks_total", 14)
-    mod.handle_book_meetings = mk("book_meetings", "meetings", {"total_meetings": 6})
-    mod.handle_send_welcome_emails = mk("send_welcome_emails", "notifications", {"sent": 2, "failed": 0, "simulated": True})
-    mod.handle_hr_report = mk("hr_report", "report", {k: 0 for k in REPORT_KEYS})
+    stubbed = []
+    for name in HANDLER_NAMES:
+        fn = getattr(real, name, None)
+        if fn is None:
+            fn = stubs[name]
+            stubbed.append(name)
+        setattr(mod, name, fn)
     pkg.handlers = mod
     sys.modules["backend.hr_agents"] = pkg
     sys.modules["backend.hr_agents.handlers"] = mod
+    return stubbed
 
 
 async def main():
-    real = hr_agents_available()
+    real = real_handlers()
+    missing = HANDLER_NAMES if real is None else [n for n in HANDLER_NAMES if not hasattr(real, n)]
 
-    if not real:
-        # graceful failure path: hr run must fail, not crash
+    if missing:
+        # 1. graceful failure: incomplete hr_agents must fail the run, not hang it
         rid = make_hr_run()
         await orchestrator.run_existing(rid)
         status = db.get_run(rid)["run"]["status"]
         assert status == "failed", f"expected failed, got {status}"
-        print("PASS: missing hr_agents -> hr run failed gracefully")
+        print(f"PASS: incomplete hr_agents (missing {len(missing)}) -> run failed gracefully")
 
-        calls = []
-        install_stub_handlers(calls)
+        # 2. fill the gaps with stubs and run the pipeline through the orchestrator
+        stubbed = install_handlers(real)
         rid = make_hr_run()
         await orchestrator.run_existing(rid)
-        assert calls == ["plan_onboarding", "book_meetings", "send_welcome_emails", "hr_report"], calls
-        assert db.get_run(rid)["run"]["status"] == "completed"
-        print("PASS: hr fallback called all 4 tools in order (stubbed handlers)")
+        run = db.get_run(rid)
+        assert run["run"]["status"] == "completed", run["run"]["status"]
+        report = run["report"] or {}
+        assert REPORT_KEYS <= set(report), f"report missing keys: {REPORT_KEYS - set(report)}"
+        if "handle_plan_onboarding" not in stubbed:
+            assert report["tasks_total"] > 0, "real planner did not feed tasks_total into ctx"
+        print(f"PASS: hybrid hr pipeline completed (stubbed: {stubbed or 'none'})")
+        print(json.dumps(report, indent=2, default=str))
     else:
         rid = make_hr_run()
         await orchestrator.run_existing(rid)
         run = db.get_run(rid)
         assert run["run"]["status"] == "completed", run["run"]["status"]
         report = run["report"] or {}
-        missing = REPORT_KEYS - set(report)
-        assert not missing, f"report missing keys: {missing}"
+        assert REPORT_KEYS <= set(report), f"report missing keys: {REPORT_KEYS - set(report)}"
         assert report["total_hires"] == len(EMPLOYEES), report
+        assert report["tasks_total"] > 0, report
         print("PASS: real hr pipeline completed, report matches OVERVIEW contract")
         print(json.dumps(report, indent=2, default=str))
 
@@ -116,7 +161,8 @@ async def main():
     assert run["report"], "logistics report missing"
     print("PASS: logistics fallback still completes with a report")
 
-    print("\nALL CHECKS PASSED" + (" (real hr_agents)" if real else " (hr_agents not merged yet — stub mode)"))
+    state = "complete" if not missing else f"missing {missing}"
+    print(f"\nALL CHECKS PASSED (hr_agents: {state})")
 
 
 asyncio.run(main())
