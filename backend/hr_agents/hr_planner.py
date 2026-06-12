@@ -78,11 +78,14 @@ async def run(
         f"Generated onboarding plan for {len(employees)} hires"
     )
 
-    # Planner contract
+    # Planner contract — tasks_total feeds the HR Reporter's readiness %
+    tasks_per_member = sum(len(tasks) for tasks in DEFAULT_TASKS.values())
+
     result = {
         "goal": goal,
         "total_hires": len(employees),
         "teams": len(grouped_employees),
+        "tasks_total": len(employees) * tasks_per_member,
         "plan": onboarding_plan
     }
 
