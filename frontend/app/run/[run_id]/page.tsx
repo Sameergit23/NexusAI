@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import {
   Brain, Map as MapIcon, Route, Mail, BarChart3, CheckCircle2, Loader2, Circle,
   Leaf, IndianRupee, Clock, TrendingDown, Users, ClipboardCheck,
+  ChevronDown, ChevronUp, ArrowRight, AlertTriangle,
 } from "lucide-react";
 import {
   getRun, AGENTS,
@@ -43,6 +44,7 @@ const HR_AGENT_ALIAS: Record<string, AgentName> = {
 export default function RunPage() {
   const { run_id } = useParams<{ run_id: string }>();
   const [data, setData] = useState<RunResponse | null>(null);
+  const [showActivity, setShowActivity] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export default function RunPage() {
   const report = data?.report ?? data?.analytics ?? null;
   const lgReport = !hr ? (report as Report | null) : null;
   const hrReport = hr ? (report as HrReport | null) : null;
+  const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
 
   // Derive each agent's state from the log stream (sequential animation).
   // HR agents log under their own names — map them onto the same 5 card slots.
@@ -115,40 +118,105 @@ export default function RunPage() {
         <p className="mt-2 text-sm font-medium text-gray-600">{data?.run?.goal}</p>
       </header>
 
-      {/* Agent cards */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+      {/* While running: a calm progress hero, no machinery */}
+      {!report && status === "running" && (
+        <div className="mb-6 flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-white px-6 py-12 shadow-soft">
+          <Loader2 size={28} className="animate-spin text-indigo-500" />
+          <p className="mt-4 text-base font-semibold text-gray-800">
+            {hr ? "Onboarding in progress…" : "Optimising your operation…"}
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            {lastLog ? lastLog.message : "Starting agents…"}
+          </p>
+        </div>
+      )}
+
+      {/* Failed: say so plainly */}
+      {status === "failed" && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-5 py-4">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" />
+          <div>
+            <p className="text-sm font-semibold text-red-700">This run could not be completed.</p>
+            <p className="mt-0.5 text-sm text-red-600">
+              {[...logs].reverse().find((l) => l.level === "error")?.message ?? "Check the agent activity below for details."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* THE RESULT — first thing a finished run shows */}
+      {hrReport && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Readiness report</h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Metric icon={Users} label="Hires onboarded" value={`${hrReport.total_hires}`} />
+            <Metric icon={ClipboardCheck} label="Tasks completed" value={`${hrReport.tasks_completed}/${hrReport.tasks_total}`} sub={`${hrReport.readiness_pct}% ready`} />
+            <Metric icon={IndianRupee} label="Cost saved" value={`₹${hrReport.cost_saved_inr}`} />
+            <Metric icon={Clock} label="Hours saved" value={`${hrReport.hours_saved} h`} sub={`${hrReport.emails_sent} welcome emails sent`} />
+          </div>
+        </section>
+      )}
+
+      {lgReport && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Impact report</h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Metric icon={TrendingDown} label="Distance saved" value={`${lgReport.savings_km} km`} sub={`${lgReport.savings_pct}% shorter`} />
+            <Metric icon={Leaf} label="CO₂ avoided" value={`${lgReport.co2_avoided_kg} kg`} sub={`${lgReport.trees_equivalent} trees/yr`} />
+            <Metric icon={IndianRupee} label="Cost saved" value={`₹${lgReport.cost_saved_inr}`} />
+            <Metric icon={Clock} label="Time saved" value={`${lgReport.time_saved_min} min`} sub={`${Math.round(lgReport.on_time_rate * 100)}% on-time`} />
+          </div>
+          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-soft">
+            Naive routing: <b className="text-gray-900 font-semibold">{lgReport.naive_km} km</b> →
+            optimised: <b className="text-emerald-600 font-bold">{lgReport.optimised_km} km</b>
+          </div>
+        </section>
+      )}
+
+      {/* Map is a result too — logistics only */}
+      {!hr && (
+        <div className="mb-6">
+          <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-soft">
+            <MapView routes={data?.routes ?? null} />
+          </div>
+        </div>
+      )}
+
+      {/* Slim "how it was done" strip — the 5 agents, one line */}
+      <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-soft">
+        <span className="mr-1 text-xs font-semibold text-gray-500">
+          {status === "completed" ? "How it was done:" : "Agents:"}
+        </span>
         {AGENTS.map((a, i) => {
-          const { label, icon: Icon } = meta[a];
+          const { label } = meta[a];
           const st = agentState(i);
           return (
-            <div
-              key={a}
-              className={`rounded-lg bg-white p-4 shadow-soft border border-gray-200 border-l-4 transition ${
-                st === "running"
-                  ? "border-l-indigo-500 bg-indigo-50/10"
-                  : st === "done"
-                  ? "border-l-emerald-500 bg-emerald-50/10"
-                  : "border-l-gray-300"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <Icon size={18} className="text-gray-500" />
+            <span key={a} className="flex items-center gap-2">
+              <span
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  st === "done"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : st === "running"
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : "border-gray-200 bg-gray-50 text-gray-400"
+                }`}
+              >
                 {st === "done" ? (
-                  <CheckCircle2 size={16} className="text-emerald-500" />
+                  <CheckCircle2 size={13} />
                 ) : st === "running" ? (
-                  <Loader2 size={16} className="animate-spin text-indigo-500" />
+                  <Loader2 size={13} className="animate-spin" />
                 ) : (
-                  <Circle size={16} className="text-gray-300" />
+                  <Circle size={13} />
                 )}
-              </div>
-              <p className="mt-2 text-sm font-bold text-gray-800">{label}</p>
-              <p className="text-xs font-semibold capitalize text-gray-500">{st}</p>
-            </div>
+                {label}
+              </span>
+              {i < AGENTS.length - 1 && <ArrowRight size={12} className="text-gray-300" />}
+            </span>
           );
         })}
       </div>
 
-      {/* Recharts Distance Comparison (Naive vs Optimised) — logistics only */}
+      {/* Distance chart — supporting detail, logistics only */}
       {lgReport && (
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-soft">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">Distance Optimization (Naive vs. Optimised)</h2>
@@ -170,70 +238,39 @@ export default function RunPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Map — no routes to draw for HR runs */}
-        {!hr && (
-          <div className="lg:col-span-2">
-            <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-soft">
-              <MapView routes={data?.routes ?? null} />
+      {/* Raw agent activity — collapsed by default, for the curious (and the judges) */}
+      <div className="rounded-lg border border-gray-200 bg-gray-50 shadow-soft">
+        <button
+          onClick={() => setShowActivity((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-600 hover:text-gray-900"
+        >
+          <span>View agent activity ({logs.length} log entries)</span>
+          {showActivity ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+        {showActivity && (
+          <div className="border-t border-gray-200 p-4">
+            <div className="flex max-h-[372px] flex-col gap-2 overflow-y-auto font-mono text-xs text-gray-600">
+              {logs.map((l, i) => (
+                <div key={i} className="border-l-2 border-gray-300 pl-2 py-0.5">
+                  <span
+                    className={`font-semibold ${
+                      l.level === "error"
+                        ? "text-red-600"
+                        : l.level === "warning"
+                        ? "text-amber-600"
+                        : "text-indigo-600"
+                    }`}
+                  >
+                    {l.agent}
+                  </span>
+                  <p className="text-gray-700 mt-0.5">{l.message}</p>
+                </div>
+              ))}
+              {logs.length === 0 && <p className="text-gray-400 italic">Waiting for agents…</p>}
             </div>
           </div>
         )}
-
-        {/* Live log feed */}
-        <div className={`rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-soft ${hr ? "lg:col-span-3" : ""}`}>
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">Agent reasoning log</h2>
-          <div className="flex max-h-[372px] flex-col gap-2 overflow-y-auto font-mono text-xs text-gray-600">
-            {logs.map((l, i) => (
-              <div key={i} className="border-l-2 border-gray-300 pl-2 py-0.5">
-                <span
-                  className={`font-semibold ${
-                    l.level === "error"
-                      ? "text-red-600"
-                      : l.level === "warning"
-                      ? "text-amber-600"
-                      : "text-indigo-600"
-                  }`}
-                >
-                  {l.agent}
-                </span>
-                <p className="text-gray-700 mt-0.5">{l.message}</p>
-              </div>
-            ))}
-            {logs.length === 0 && <p className="text-gray-400 italic">Waiting for agents…</p>}
-          </div>
-        </div>
       </div>
-
-      {/* Impact report — logistics */}
-      {lgReport && (
-        <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">Impact report</h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Metric icon={TrendingDown} label="Distance saved" value={`${lgReport.savings_km} km`} sub={`${lgReport.savings_pct}% shorter`} />
-            <Metric icon={Leaf} label="CO₂ avoided" value={`${lgReport.co2_avoided_kg} kg`} sub={`${lgReport.trees_equivalent} trees/yr`} />
-            <Metric icon={IndianRupee} label="Cost saved" value={`₹${lgReport.cost_saved_inr}`} />
-            <Metric icon={Clock} label="Time saved" value={`${lgReport.time_saved_min} min`} sub={`${Math.round(lgReport.on_time_rate * 100)}% on-time`} />
-          </div>
-          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-soft">
-            Naive routing: <b className="text-gray-900 font-semibold">{lgReport.naive_km} km</b> →
-            optimised: <b className="text-emerald-600 font-bold">{lgReport.optimised_km} km</b>
-          </div>
-        </section>
-      )}
-
-      {/* Impact report — HR onboarding */}
-      {hrReport && (
-        <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">Readiness report</h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Metric icon={Users} label="Hires onboarded" value={`${hrReport.total_hires}`} />
-            <Metric icon={ClipboardCheck} label="Tasks completed" value={`${hrReport.tasks_completed}/${hrReport.tasks_total}`} sub={`${hrReport.readiness_pct}% ready`} />
-            <Metric icon={IndianRupee} label="Cost saved" value={`₹${hrReport.cost_saved_inr}`} />
-            <Metric icon={Clock} label="Hours saved" value={`${hrReport.hours_saved} h`} sub={`${hrReport.emails_sent} welcome emails sent`} />
-          </div>
-        </section>
-      )}
     </main>
   );
 }
