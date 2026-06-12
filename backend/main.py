@@ -41,10 +41,20 @@ class Delivery(BaseModel):
     lng: float | None = None
 
 
+class Employee(BaseModel):
+    id: str | None = None
+    name: str
+    role: str | None = None
+    team: str | None = None
+    email: str | None = None
+
+
 class RunRequest(BaseModel):
     goal: str
-    deliveries: list[Delivery]
-    num_vehicles: int = 1
+    vertical: str = "logistics"          # "logistics" (default) or "hr"
+    deliveries: list[Delivery] | None = None
+    num_vehicles: int | None = 1
+    employees: list[Employee] | None = None
 
 
 @app.get("/health")
@@ -54,16 +64,30 @@ def health():
 
 @app.post("/run")
 async def start_run(req: RunRequest):
-    deliveries = []
-    for i, d in enumerate(req.deliveries):
-        row = d.model_dump()
-        row["id"] = row.get("id") or str(i + 1)
-        deliveries.append(row)
+    if req.vertical == "hr":
+        if not req.employees:
+            raise HTTPException(status_code=422, detail="employees required for hr runs")
+        employees = []
+        for i, e in enumerate(req.employees):
+            row = e.model_dump()
+            row["id"] = row.get("id") or str(i + 1)
+            employees.append(row)
 
-    run_id = db.create_run(req.goal, req.num_vehicles)
-    db.ctx_set(run_id, "goal", req.goal)
-    db.ctx_set(run_id, "deliveries", deliveries)
-    db.ctx_set(run_id, "num_vehicles", req.num_vehicles)
+        run_id = db.create_run(req.goal, 0)  # num_vehicles unused for HR
+        db.ctx_set(run_id, "vertical", "hr")
+        db.ctx_set(run_id, "goal", req.goal)
+        db.ctx_set(run_id, "employees", employees)
+    else:
+        deliveries = []
+        for i, d in enumerate(req.deliveries or []):
+            row = d.model_dump()
+            row["id"] = row.get("id") or str(i + 1)
+            deliveries.append(row)
+
+        run_id = db.create_run(req.goal, req.num_vehicles or 1)
+        db.ctx_set(run_id, "goal", req.goal)
+        db.ctx_set(run_id, "deliveries", deliveries)
+        db.ctx_set(run_id, "num_vehicles", req.num_vehicles or 1)
 
     # Run autonomously in the background so the client can poll progress live.
     asyncio.create_task(orchestrator.run_existing(run_id))
