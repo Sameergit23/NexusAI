@@ -73,7 +73,7 @@ async def start_run(req: RunRequest):
             row["id"] = row.get("id") or str(i + 1)
             employees.append(row)
 
-        run_id = db.create_run(req.goal, 0)  # num_vehicles unused for HR
+        run_id = db.create_run(req.goal, 0, vertical="hr")  # num_vehicles unused for HR
         db.ctx_set(run_id, "vertical", "hr")
         db.ctx_set(run_id, "goal", req.goal)
         db.ctx_set(run_id, "employees", employees)
