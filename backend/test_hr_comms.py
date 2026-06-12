@@ -16,7 +16,7 @@ async def main():
     os.environ.pop("ANTHROPIC_API_KEY", None)
     os.environ.pop("RESEND_API_KEY", None)
 
-    run_id = db.create_run("Onboard 1 engineer", 0, vertical="hr")
+    run_id = db.create_run("Onboard 1 engineer", 0)
 
     n = await hr_communicator.run(run_id, employees, {})
     print("\n===== COMMUNICATOR OUTPUT =====")
