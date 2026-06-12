@@ -1,79 +1,69 @@
-"""
-handlers.py
-NexusAI HR Onboarding — Agent Handler Registry
+from backend import db
 
-Registers hr_communicator and hr_reporter so the orchestrator can dispatch
-to them by name, e.g.:
-
-    result = await dispatch("hr_communicator", db=db, hire=hire_payload)
-"""
-
-from __future__ import annotations
-
-import logging
-from typing import Any, Callable, Coroutine
-
-from backend.hr_agents.hr_communicator import run_hr_communicator
-from backend.hr_agents.hr_reporter import run_hr_reporter
-
-logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Handler type alias
-# ---------------------------------------------------------------------------
-
-AgentHandler = Callable[..., Coroutine[Any, Any, dict[str, Any]]]
-
-# ---------------------------------------------------------------------------
-# Registry — maps agent name → async handler function
-# ---------------------------------------------------------------------------
-
-_REGISTRY: dict[str, AgentHandler] = {
-    "hr_communicator": run_hr_communicator,
-    "hr_reporter": run_hr_reporter,
-}
+from backend.hr_agents.hr_planner import run as planner_run
+from backend.hr_agents.onboarding_scheduler import run as scheduler_run
+from backend.hr_agents.hr_communicator import run as communicator_run
+from backend.hr_agents.hr_reporter import run as reporter_run
 
 
-def get_handler(agent_name: str) -> AgentHandler:
-    """
-    Return the async handler for *agent_name*.
+async def handle_plan_onboarding(args):
 
-    Raises:
-        KeyError: if the agent name is not registered.
-    """
-    if agent_name not in _REGISTRY:
-        registered = list(_REGISTRY.keys())
-        raise KeyError(
-            f"Unknown HR agent '{agent_name}'. Registered agents: {registered}"
-        )
-    return _REGISTRY[agent_name]
+    run_id = args["run_id"]
 
+    goal = args.get("goal") or db.ctx_get(run_id, "goal")
 
-async def dispatch(
-    agent_name: str,
-    db: Any,
-    hire: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    Dispatch a call to a registered HR agent by name.
+    employees = db.ctx_get(run_id, "employees") or []
 
-    Args:
-        agent_name: One of 'hr_communicator', 'hr_reporter'.
-        db:         Database/context object passed through to the agent.
-        hire:       Hire payload dict (name, role, start_date, team, email).
+    result = await planner_run(goal, employees, run_id)
 
-    Returns:
-        The result dict returned by the agent.
+    # shared context keys the scheduler, communicator and reporter read
+    db.ctx_set(run_id, "cohorts", result["plan"])
+    db.ctx_set(run_id, "tasks_total", result["tasks_total"])
 
-    Raises:
-        KeyError: if agent_name is not registered.
-    """
-    handler: AgentHandler = get_handler(agent_name)
-    logger.info("Dispatching HR agent: %s | hire: %s", agent_name, hire.get("name"))
-    result: dict[str, Any] = await handler(db=db, hire=hire)
     return result
 
 
-def list_agents() -> list[str]:
-    """Return the names of all registered HR agents."""
-    return list(_REGISTRY.keys())
+async def handle_book_meetings(args):
+
+    run_id = args["run_id"]
+
+    cohorts = db.ctx_get(run_id, "cohorts") or []
+
+    result = await scheduler_run(run_id, cohorts)
+
+    db.ctx_set(run_id, "meetings", result)
+
+    return result
+
+
+async def handle_send_welcome_emails(args):
+
+    run_id = args["run_id"]
+
+    employees = db.ctx_get(run_id, "employees") or []
+
+    meetings = db.ctx_get(run_id, "meetings") or {}
+
+    result = await communicator_run(run_id, employees, meetings)
+
+    db.ctx_set(run_id, "notifications", result)
+
+    return result
+
+
+async def handle_hr_report(args):
+
+    run_id = args["run_id"]
+
+    tasks_total = db.ctx_get(run_id, "tasks_total", 0)
+
+    # Assume all assigned tasks are completed for the demo
+    tasks_completed = tasks_total
+
+    total_hires = len(db.ctx_get(run_id, "employees") or [])
+
+    result = await reporter_run(run_id, tasks_total, tasks_completed, total_hires)
+
+    db.ctx_set(run_id, "report", result)
+
+    return result
