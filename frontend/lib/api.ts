@@ -10,11 +10,21 @@ export const AGENTS = [
 
 export type AgentName = (typeof AGENTS)[number];
 
+export type Vertical = "logistics" | "hr";
+
 export interface Delivery {
   id?: string;
   address: string;
   lat?: number;
   lng?: number;
+}
+
+export interface Employee {
+  id?: string;
+  name: string;
+  role?: string;
+  team?: string;
+  email?: string;
 }
 
 export interface LogEntry {
@@ -50,12 +60,24 @@ export interface Report {
   trees_equivalent: number;
 }
 
+// Shape from docs/hr-onboarding/OVERVIEW.md
+export interface HrReport {
+  total_hires: number;
+  tasks_completed: number;
+  tasks_total: number;
+  readiness_pct: number;
+  hours_saved: number;
+  cost_saved_inr: number;
+  emails_sent: number;
+}
+
 export interface RunResponse {
   run: {
     id: string;
     goal: string;
     status: "running" | "completed" | "failed" | "pending";
     num_vehicles: number;
+    vertical?: Vertical;
     created_at: string;
     completed_at: string | null;
   } | null;
@@ -63,14 +85,28 @@ export interface RunResponse {
   deliveries: Delivery[];
   analytics: Report | null;
   routes: Record<string, Zone | number> | null;
-  report: Report | null;
+  report: Report | HrReport | null;
 }
 
-export async function startRun(goal: string, deliveries: Delivery[], num_vehicles: number) {
+// Third arg: number of vehicles (logistics, as before) or the vertical "hr".
+export async function startRun(
+  goal: string,
+  items: Delivery[] | Employee[],
+  vehiclesOrVertical: number | Vertical = "logistics"
+) {
+  const body =
+    vehiclesOrVertical === "hr"
+      ? { vertical: "hr", goal, employees: items as Employee[] }
+      : {
+          vertical: "logistics",
+          goal,
+          deliveries: items as Delivery[],
+          num_vehicles: typeof vehiclesOrVertical === "number" ? vehiclesOrVertical : 1,
+        };
   const res = await fetch(`${API}/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ goal, deliveries, num_vehicles }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`start run failed: ${res.status}`);
   return (await res.json()) as { run_id: string; status: string };
@@ -97,4 +133,15 @@ export const SAMPLE_DELIVERIES: Delivery[] = [
   { id: "8", address: "Pune Camp, Pune", lat: 18.5125, lng: 73.879 },
   { id: "9", address: "Baner, Pune", lat: 18.559, lng: 73.7868 },
   { id: "10", address: "Hinjewadi Phase 1, Pune", lat: 18.5912, lng: 73.7389 },
+];
+
+export const SAMPLE_HR_GOAL =
+  "Onboard 5 new engineers joining Monday — provision accounts, schedule intro meetings, send welcome packets, track completion";
+
+export const SAMPLE_EMPLOYEES: Employee[] = [
+  { id: "1", name: "Priya Sharma",   role: "Backend Engineer",  team: "Platform",  email: "priya@nexusai.demo" },
+  { id: "2", name: "Arjun Mehta",    role: "Frontend Engineer", team: "Web",       email: "arjun@nexusai.demo" },
+  { id: "3", name: "Riya Nair",      role: "Data Scientist",    team: "ML",        email: "riya@nexusai.demo" },
+  { id: "4", name: "Karan Singh",    role: "DevOps Engineer",   team: "Infra",     email: "karan@nexusai.demo" },
+  { id: "5", name: "Aanya Iyer",     role: "Product Designer",  team: "Design",    email: "aanya@nexusai.demo" },
 ];

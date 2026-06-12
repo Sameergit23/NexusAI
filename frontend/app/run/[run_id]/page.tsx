@@ -5,9 +5,12 @@ import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import {
   Brain, Map as MapIcon, Route, Mail, BarChart3, CheckCircle2, Loader2, Circle,
-  Leaf, IndianRupee, Clock, TrendingDown,
+  Leaf, IndianRupee, Clock, TrendingDown, Users, ClipboardCheck,
 } from "lucide-react";
-import { getRun, AGENTS, type RunResponse, type AgentName } from "@/lib/api";
+import {
+  getRun, AGENTS,
+  type RunResponse, type AgentName, type Report, type HrReport,
+} from "@/lib/api";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -19,6 +22,22 @@ const AGENT_META: Record<AgentName, { label: string; icon: any }> = {
   route_optimizer: { label: "Router", icon: Route },
   notification: { label: "Communicator", icon: Mail },
   analytics: { label: "Analytics", icon: BarChart3 },
+};
+
+// Same 5 cards, HR labels (see docs/hr-onboarding/OVERVIEW.md)
+const AGENT_META_HR: Record<AgentName, { label: string; icon: any }> = {
+  orchestrator: { label: "Orchestrator", icon: Brain },
+  planner: { label: "HR Planner", icon: Users },
+  route_optimizer: { label: "Onboarding Scheduler", icon: Clock },
+  notification: { label: "HR Communicator", icon: Mail },
+  analytics: { label: "HR Reporter", icon: BarChart3 },
+};
+
+const HR_AGENT_ALIAS: Record<string, AgentName> = {
+  hr_planner: "planner",
+  onboarding_scheduler: "route_optimizer",
+  hr_communicator: "notification",
+  hr_reporter: "analytics",
 };
 
 export default function RunPage() {
@@ -49,13 +68,20 @@ export default function RunPage() {
 
   const status = data?.run?.status ?? "running";
   const logs = data?.logs ?? [];
+  const vertical = data?.run?.vertical ?? "logistics";
+  const hr = vertical === "hr";
+  const meta = hr ? AGENT_META_HR : AGENT_META;
   const report = data?.report ?? data?.analytics ?? null;
+  const lgReport = !hr ? (report as Report | null) : null;
+  const hrReport = hr ? (report as HrReport | null) : null;
 
   // Derive each agent's state from the log stream (sequential animation).
+  // HR agents log under their own names — map them onto the same 5 card slots.
   const lastAgentIdx = useMemo(() => {
     let idx = -1;
     for (const l of logs) {
-      const i = AGENTS.indexOf(l.agent as AgentName);
+      const name = (HR_AGENT_ALIAS[l.agent] ?? l.agent) as AgentName;
+      const i = AGENTS.indexOf(name);
       if (i > idx) idx = i;
     }
     return idx;
@@ -69,15 +95,15 @@ export default function RunPage() {
   }
 
   const chartData = useMemo(() => {
-    if (!report) return [];
+    if (!lgReport) return [];
     return [
       {
         name: "Distance (km)",
-        Naive: report.naive_km,
-        Optimised: report.optimised_km,
+        Naive: lgReport.naive_km,
+        Optimised: lgReport.optimised_km,
       },
     ];
-  }, [report]);
+  }, [lgReport]);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
@@ -92,7 +118,7 @@ export default function RunPage() {
       {/* Agent cards */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
         {AGENTS.map((a, i) => {
-          const { label, icon: Icon } = AGENT_META[a];
+          const { label, icon: Icon } = meta[a];
           const st = agentState(i);
           return (
             <div
@@ -122,8 +148,8 @@ export default function RunPage() {
         })}
       </div>
 
-      {/* Recharts Distance Comparison (Naive vs Optimised) */}
-      {report && (
+      {/* Recharts Distance Comparison (Naive vs Optimised) — logistics only */}
+      {lgReport && (
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-soft">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">Distance Optimization (Naive vs. Optimised)</h2>
           <div className="h-64 w-full">
@@ -145,15 +171,17 @@ export default function RunPage() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Map */}
-        <div className="lg:col-span-2">
-          <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-soft">
-            <MapView routes={data?.routes ?? null} />
+        {/* Map — no routes to draw for HR runs */}
+        {!hr && (
+          <div className="lg:col-span-2">
+            <div className="h-[420px] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-soft">
+              <MapView routes={data?.routes ?? null} />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Live log feed */}
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-soft">
+        <div className={`rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-soft ${hr ? "lg:col-span-3" : ""}`}>
           <h2 className="mb-3 text-sm font-semibold text-gray-700">Agent reasoning log</h2>
           <div className="flex max-h-[372px] flex-col gap-2 overflow-y-auto font-mono text-xs text-gray-600">
             {logs.map((l, i) => (
@@ -177,19 +205,32 @@ export default function RunPage() {
         </div>
       </div>
 
-      {/* Impact report */}
-      {report && (
+      {/* Impact report — logistics */}
+      {lgReport && (
         <section className="mt-6">
           <h2 className="mb-3 text-sm font-semibold text-gray-700">Impact report</h2>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Metric icon={TrendingDown} label="Distance saved" value={`${report.savings_km} km`} sub={`${report.savings_pct}% shorter`} />
-            <Metric icon={Leaf} label="CO₂ avoided" value={`${report.co2_avoided_kg} kg`} sub={`${report.trees_equivalent} trees/yr`} />
-            <Metric icon={IndianRupee} label="Cost saved" value={`₹${report.cost_saved_inr}`} />
-            <Metric icon={Clock} label="Time saved" value={`${report.time_saved_min} min`} sub={`${Math.round(report.on_time_rate * 100)}% on-time`} />
+            <Metric icon={TrendingDown} label="Distance saved" value={`${lgReport.savings_km} km`} sub={`${lgReport.savings_pct}% shorter`} />
+            <Metric icon={Leaf} label="CO₂ avoided" value={`${lgReport.co2_avoided_kg} kg`} sub={`${lgReport.trees_equivalent} trees/yr`} />
+            <Metric icon={IndianRupee} label="Cost saved" value={`₹${lgReport.cost_saved_inr}`} />
+            <Metric icon={Clock} label="Time saved" value={`${lgReport.time_saved_min} min`} sub={`${Math.round(lgReport.on_time_rate * 100)}% on-time`} />
           </div>
           <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-soft">
-            Naive routing: <b className="text-gray-900 font-semibold">{report.naive_km} km</b> →
-            optimised: <b className="text-emerald-600 font-bold">{report.optimised_km} km</b>
+            Naive routing: <b className="text-gray-900 font-semibold">{lgReport.naive_km} km</b> →
+            optimised: <b className="text-emerald-600 font-bold">{lgReport.optimised_km} km</b>
+          </div>
+        </section>
+      )}
+
+      {/* Impact report — HR onboarding */}
+      {hrReport && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Readiness report</h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Metric icon={Users} label="Hires onboarded" value={`${hrReport.total_hires}`} />
+            <Metric icon={ClipboardCheck} label="Tasks completed" value={`${hrReport.tasks_completed}/${hrReport.tasks_total}`} sub={`${hrReport.readiness_pct}% ready`} />
+            <Metric icon={IndianRupee} label="Cost saved" value={`₹${hrReport.cost_saved_inr}`} />
+            <Metric icon={Clock} label="Hours saved" value={`${hrReport.hours_saved} h`} sub={`${hrReport.emails_sent} welcome emails sent`} />
           </div>
         </section>
       )}
